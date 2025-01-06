@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Produtos</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .catalogo {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .item {
+            border: 1px solid #ccc;
+            padding: 15px;
+            width: 250px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            background-color: white;
+            border-radius: 8px;
+        }
+        .item img {
+            max-width: 100%;
+            height: auto;
+            max-height: 150px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .item h3 {
+            font-size: 1.2em;
+            margin-bottom: 8px;
+        }
+        .item p {
+            font-size: 0.9em;
+            margin-bottom: 12px;
+        }
+        input[type="number"], input[type="text"] {
+            width: 60%;
+            padding: 5px;
+            margin: 5px 0;
+            text-align: center;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .pedido {
+            margin-top: 40px;
+        }
+        .pedido ul {
+            list-style: none;
+            padding: 0;
+        }
+        .pedido li {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .pedido .quantidade-buttons button {
+            background-color: #28a745;
+        }
+        .pedido .quantidade-buttons button:hover {
+            background-color: #218838;
+        }
+        .pedido .quantidade-buttons button,
+        .pedido .remover {
+            margin-left: 5px;
+        }
+        .total {
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 1.2em;
+        }
+        #exportarPedido {
+            background-color: #17a2b8;
+            color: white;
+            padding: 10px 15px;
+            font-size: 1em;
+            margin-top: 20px;
+        }
+        #exportarPedido:hover {
+            background-color: #138496;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Catálogo de Produtos Kawasaki Zarc Parts</h1>
+    
+    <!-- Campos para inserir dados do cliente e loja -->
+    <div>
+        <label for="nomeLoja">Nome da Loja:</label>
+        <input type="text" id="nomeLoja" placeholder="Nome da loja">
+    </div>
+    <div>
+        <label for="estado">Estado:</label>
+        <input type="text" id="estado" placeholder="Estado">
+    </div>
+    <div>
+        <label for="nomeCliente">Nome do Cliente:</label>
+        <input type="text" id="nomeCliente" placeholder="Nome do cliente">
+    </div>
+    <div>
+        <label for="telefone">Telefone:</label>
+        <input type="text" id="telefone" placeholder="Telefone">
+    </div>
+
+    <input type="file" id="inputArquivo" accept=".xlsx" />
+    <div class="catalogo" id="catalogo"></div>
+
+    <div class="pedido" id="pedido">
+        <h2>Seu Pedido</h2>
+        <ul id="pedidoList"></ul>
+        <p class="total" id="totalPedido">Total: R$ 0,00</p>
+        <button id="exportarPedido" onclick="exportarPedido()">Exportar Pedido para Excel</button>
+    </div>
+
+    <script>
+        const inputArquivo = document.getElementById('inputArquivo');
+        const catalogo = document.getElementById('catalogo');
+        const pedidoList = document.getElementById('pedidoList');
+        const totalPedido = document.getElementById('totalPedido');
+        const exportarPedidoBtn = document.getElementById('exportarPedido');
+        let totalPedidoValor = 0;
+        let itensPedido = [];
+
+        inputArquivo.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const produtos = XLSX.utils.sheet_to_json(sheet);
+
+                catalogo.innerHTML = ''; // Limpa o catálogo atual
+                produtos.forEach(produto => {
+                    const nome = produto.Nome || 'Produto Sem Nome';
+                    const descricao = produto.Descrição || 'Sem descrição disponível.';
+                    const preco = parseFloat(produto.Preço || 0).toFixed(2);
+                    const imposto = parseFloat(produto.Imposto || 0).toFixed(2);
+                    const imagem = produto.Imagem || 'https://via.placeholder.com/150';
+
+                    const precoComImposto = (parseFloat(preco) + parseFloat(imposto)).toFixed(2);
+
+                    const item = criarItemProduto(nome, descricao, preco, imposto, precoComImposto, imagem);
+                    catalogo.appendChild(item);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function criarItemProduto(nome, descricao, preco, imposto, precoComImposto, imagem) {
+            const item = document.createElement('div');
+            item.className = 'item';
+            item.innerHTML = `
+                <img src="${imagem}" alt="${nome}">
+                <h3>${nome}</h3>
+                <p>${descricao}</p>
+                <p><strong>R$ ${preco} + R$ ${imposto} (Imposto)</strong></p>
+                <p><strong>Total: R$ ${precoComImposto}</strong></p>
+                <label for="quantidade_${nome}">Quantidade:</label>
+                <input type="number" id="quantidade_${nome}" class="quantidade" value="1" min="1">
+                <button onclick="adicionarAoPedido('${nome}', ${precoComImposto}, '${nome}')">Adicionar ao Pedido</button>
+            `;
+            return item;
+        }
+
+        function adicionarAoPedido(nome, precoComImposto, nomeProduto) {
+            const quantidade = parseInt(document.getElementById(`quantidade_${nomeProduto}`).value) || 1;
+            const precoTotalItem = precoComImposto * quantidade;
+            
+            // Verifica se o item já foi adicionado ao pedido
+            const itemExistente = document.getElementById(`pedido_${nomeProduto}`);
+            if (itemExistente) {
+                // Atualiza a quantidade e o preço total
+                const quantidadeElemento = itemExistente.querySelector('.quantidade-valor');
+                const precoElemento = itemExistente.querySelector('.preco-valor');
+                const novaQuantidade = parseInt(quantidadeElemento.textContent) + quantidade;
+                quantidadeElemento.textContent = novaQuantidade;
+                precoElemento.textContent = `R$ ${(precoComImposto * novaQuantidade).toFixed(2)}`;
+            } else {
+                // Cria o item no pedido
+                const listItem = document.createElement('li');
+                listItem.id = `pedido_${nomeProduto}`;
+                listItem.innerHTML = `
+                    <span>${nome} - Quantidade: <span class="quantidade-valor">${quantidade}</span> 
+                    - R$ <span class="preco-valor">${precoTotalItem.toFixed(2)}</span></span>
+                    <div class="quantidade-buttons">
+                        <button onclick="alterarQuantidade('${nomeProduto}', -1, ${precoComImposto})">-</button>
+                        <button onclick="alterarQuantidade('${nomeProduto}', 1, ${precoComImposto})">+</button>
+                        <button onclick="removerItem('${nomeProduto}', ${precoComImposto})">Remover</button>
+                    </div>
+                `;
+                pedidoList.appendChild(listItem);
+            }
+
+            // Atualiza o total do pedido
+            totalPedidoValor += precoTotalItem;
+            totalPedido.textContent = `Total: R$ ${totalPedidoValor.toFixed(2)}`;
+
+            // Adiciona o item ao array de itens do pedido
+            itensPedido.push({ nome, quantidade, precoComImposto });
+        }
+
+        function alterarQuantidade(nomeProduto, incremento, precoComImposto) {
+            const item = document.getElementById(`pedido_${nomeProduto}`);
+            if (!item) return;
+
+            const quantidadeElemento = item.querySelector('.quantidade-valor');
+            const precoElemento = item.querySelector('.preco-valor');
+
+            let novaQuantidade = parseInt(quantidadeElemento.textContent) + incremento;
+            if (novaQuantidade < 1) novaQuantidade = 1; // Impede que a quantidade seja menor que 1
+
+            quantidadeElemento.textContent = novaQuantidade;
+            precoElemento.textContent = `R$ ${(precoComImposto * novaQuantidade).toFixed(2)}`;
+
+            // Atualiza o total do pedido
+            atualizarTotalPedido(precoComImposto, incremento);
+        }
+
+        function removerItem(nomeProduto, precoComImposto) {
+            const item = document.getElementById(`pedido_${nomeProduto}`);
+            if (!item) return;
+
+            const quantidadeElemento = item.querySelector('.quantidade-valor');
+            const precoElemento = item.querySelector('.preco-valor');
+            const quantidade = parseInt(quantidadeElemento.textContent);
+
+            // Remove o item do pedido
+            item.remove();
+
+            // Atualiza o total do pedido
+            totalPedidoValor -= precoComImposto * quantidade;
+            totalPedido.textContent = `Total: R$ ${totalPedidoValor.toFixed(2)}`;
+
+            // Remove o item do array de itens do pedido
+            itensPedido = itensPedido.filter(item => item.nome !== nomeProduto);
+        }
+
+        function atualizarTotalPedido(precoComImposto, incremento) {
+            totalPedidoValor += precoComImposto * incremento;
+            totalPedido.textContent = `Total: R$ ${totalPedidoValor.toFixed(2)}`;
+        }
+
+        function gerarNomeArquivo() {
+            const data = new Date();
+            const ano = data.getFullYear();
+            const mes = String(data.getMonth() + 1).padStart(2, '0');
+            const dia = String(data.getDate()).padStart(2, '0');
+            return `pedido_${ano}-${mes}-${dia}.xlsx`;
+        }
+
+        function exportarPedido() {
+            const nomeLoja = document.getElementById('nomeLoja').value;
+            const estado = document.getElementById('estado').value;
+            const nomeCliente = document.getElementById('nomeCliente').value;
+            const telefone = document.getElementById('telefone').value;
+
+            const wsPedido = XLSX.utils.aoa_to_sheet([[
+                "Nome da Loja", "Estado", "Nome do Cliente", "Telefone", "Total Geral",
+            ], [
+                nomeLoja, estado, nomeCliente, telefone, totalPedidoValor.toFixed(2),
+            ]]);
+
+            // Adicionar os itens do pedido
+            const wsItens = XLSX.utils.aoa_to_sheet([
+                ["Produto", "Quantidade", "Preço Unitário", "Preço Total"]
+            ]);
+            
+            itensPedido.forEach(item => {
+                wsItens['!rows'] = [{ hpt: 20 }];
+                XLSX.utils.sheet_add_aoa(wsItens, [[
+                    item.nome,
+                    item.quantidade,
+                    item.precoComImposto.toFixed(2),
+                    (item.precoComImposto * item.quantidade).toFixed(2)
+                ]], { origin: -1 });
+            });
+
+            // Criar um novo arquivo de Excel com os dados
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, wsPedido, "Pedido");
+            XLSX.utils.book_append_sheet(wb, wsItens, "Itens");
+
+            // Salvar o arquivo
+            XLSX.writeFile(wb, gerarNomeArquivo());
+        }
+    </script>
+</body>
+</html>
